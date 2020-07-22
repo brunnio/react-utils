@@ -1,0 +1,83 @@
+import { useState } from 'react';
+import isEqual from 'lodash/isEqual';
+
+type Result = {
+  unsavedChanges: boolean,
+  handleChange: (e: any) => void,
+  saveChanges: (e: any, boolean) => void,
+}
+
+/**
+ * A React Hook to handle state changes
+ * @param {object} initialState The initial state of the object
+ * @return {object.Boolean} unsavedChanges - A flag indicating if a change of state has happened
+ * @return {object.Function} handleChange - The change event handler which saves values into the internal state
+ * @return {object.Function} saveChanges - A callback that handles executing the mutations needed to persist the state
+  */
+const useSave = (initialState: any): Result => {
+
+  const [state, setState] = useState<any>(processInitialState(initialState));
+  const [unsavedChanges, setUnsavedChanges] = useState<boolean>(false);
+
+  // This function is in charge of processing the initial object (the actual article returned by the query)
+  // and returning the keys/fields that we are interested in
+  function processInitialState (initialState) {
+
+    let processedInitialState = {};
+    for (var key in initialState) {
+      if (initialState.hasOwnProperty(key)) {
+
+        switch(key.toLowerCase())
+        {
+          default:
+            let data = {[key]: initialState[key]};
+            processedInitialState = { ...processedInitialState, ...data};
+        }
+      }
+    }
+    return {...processedInitialState};
+  }
+
+  const handleChange = (value: any) => {
+    // Values is the key/value pair passed by the component, split if there is an underscore
+    const componentKey = Object.keys(value)[0];
+
+    // Save the second part if present
+    let newKey = '';
+    let newValue;
+
+    // The graphql mutation needs specific key names (blogId for blogs, etc)
+    // here we simply do that transformation
+    switch (componentKey) {
+      default:
+        newKey = componentKey;
+        newValue = value;
+    }
+
+    if (state.hasOwnProperty(newKey)){
+      if (!isEqual(state[newKey], newValue[newKey])) {
+        setState({...state, ...newValue});
+        setUnsavedChanges(true);
+      }
+    }
+  }
+
+  const saveChanges = (saveGraphqlMutation:Function, autoSave:boolean) => {
+    // Save the changes to the backend if flag is true
+    if (unsavedChanges) {
+        saveGraphqlMutation({internalState: state, autoSave}).then(() => {
+        // Set the unsaved indicator to false
+        setUnsavedChanges(false);
+      });
+    }
+  };
+
+  return {
+    unsavedChanges,
+    handleChange,
+    saveChanges,
+  }
+};
+
+export default useSave;
+
